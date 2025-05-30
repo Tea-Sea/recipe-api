@@ -3,17 +3,21 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 func TestAddRecipe(t *testing.T) {
 
 	// Prepare request body
 	newRecipe := Recipe{
-		Name:       "Chocolate Cake",
-		Difficulty: 3,
+		Name:       "test recipe",
+		Difficulty: 5,
 		Method:     "This is where the method goes"}
 	body, _ := json.Marshal(newRecipe)
 
@@ -46,4 +50,72 @@ func TestAddRecipe(t *testing.T) {
 		t.Errorf("expected difficulty %v, got %v", newRecipe.Difficulty, created.Difficulty)
 	}
 
+}
+
+func TestDeleteByID(t *testing.T) {
+
+	newRecipe := Recipe{
+		ID:         100,
+		Name:       "test id",
+		Difficulty: 5,
+		Method:     "TESTING ID DELETION"}
+	body, _ := json.Marshal(newRecipe)
+
+	req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	addRecipe(w, req)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
+
+	req = httptest.NewRequest(http.MethodDelete, "/recipes/id/100", nil)
+	w = httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", res.StatusCode)
+	}
+
+	var recipe Recipe
+	result := db.Where("id = ?", newRecipe.ID).First(&recipe)
+	if result.Error == nil {
+		t.Fatalf("recipe ID: '%v' was not deleted", newRecipe.ID)
+	}
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		t.Fatalf("unexpected DB error: %v", result.Error)
+	}
+}
+
+func TestDeleteByName(t *testing.T) {
+
+	recipeName := "test recipe"
+
+	router := mux.NewRouter()
+	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
+
+	req := httptest.NewRequest(http.MethodDelete, "/recipes/name/test%20recipe", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", res.StatusCode)
+	}
+
+	var recipe Recipe
+	result := db.Where("name = ?", recipeName).First(&recipe)
+	if result.Error == nil {
+		t.Fatalf("recipe '%s' was not deleted", recipeName)
+	}
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		t.Fatalf("unexpected DB error: %v", result.Error)
+	}
 }

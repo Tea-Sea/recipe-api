@@ -61,11 +61,17 @@ func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", displayLanding)
-	router.HandleFunc("/recipes", getRecipes).Methods("GET")
+
 	router.HandleFunc("/recipes", addRecipe).Methods("POST")
-	// router.HandleFunc("/recipes/{id}", getRecipe).Methods("GET")
+	router.HandleFunc("/recipes", getAllRecipes).Methods("GET")
+
+	router.HandleFunc("/recipes/id/{id}", getRecipeByID).Methods("GET")
+	router.HandleFunc("/recipes/name/{name}", getRecipeByName).Methods("GET")
+
 	// router.HandleFunc("/recipes/{id}", updateRecipe).Methods("PUT")
-	// router.HandleFunc("/recipes/{id}", deleteRecipe).Methods("DELETE")
+
+	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
+	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
 
 	http.Handle("/", router)
 
@@ -79,8 +85,7 @@ func displayLanding(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get all recipes
-func getRecipes(w http.ResponseWriter, r *http.Request) {
-
+func getAllRecipes(w http.ResponseWriter, r *http.Request) {
 	var recipe []Recipe
 	db.Find(&recipe)
 	w.Header().Set("Content-Type", "application/json")
@@ -91,6 +96,65 @@ func getRecipes(w http.ResponseWriter, r *http.Request) {
 func addRecipe(w http.ResponseWriter, r *http.Request) {
 	var recipe Recipe
 	json.NewDecoder(r.Body).Decode(&recipe)
+	result := db.Where("name = ?", recipe.Name).First(&recipe)
+	if result.Error == nil {
+		http.Error(w, "Recipe with that name already exists.", http.StatusInternalServerError)
+		return
+	}
 	db.Create(&recipe)
 	json.NewEncoder(w).Encode(recipe)
+}
+
+// Find a recipe using the ID
+func getRecipeByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeID := vars["id"]
+	var recipe Recipe
+	db.First(&recipe, recipeID)
+	json.NewEncoder(w).Encode(recipe)
+}
+
+// Find a recipe using its name
+func getRecipeByName(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeName := vars["name"]
+	var recipe Recipe
+	db.First(&recipe, recipeName)
+	json.NewEncoder(w).Encode(recipe)
+}
+
+// Delete recipe using id
+func deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeID := vars["id"]
+	result := db.Where("id = ?", recipeID).Delete(&Recipe{})
+	if result.Error != nil {
+		http.Error(w, "Failed to delete recipe by ID", http.StatusInternalServerError)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		http.Error(w, "Recipe not found", http.StatusNotFound)
+		return
+	}
+
+	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeID)
+}
+
+// Delete recipe using name
+func deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeName := vars["name"]
+	result := db.Where("name = ?", recipeName).Delete(&Recipe{})
+	if result.Error != nil {
+		http.Error(w, "Failed to delete recipe", http.StatusInternalServerError)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		http.Error(w, "Recipe not found", http.StatusNotFound)
+		return
+	}
+
+	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeName)
 }
