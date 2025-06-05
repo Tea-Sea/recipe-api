@@ -74,10 +74,18 @@ func main() {
 	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
 	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
 
+	router.HandleFunc("/recipes/name/{name}", selectRandomRecipe).Methods("GET")
+
 	http.Handle("/", router)
 
 	fmt.Printf("Server listening on port 8080\n")
 	log.Fatal(http.ListenAndServe(":8080", router))
+
+	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("404 Not Found: %s %s", r.Method, r.URL.Path)
+		http.NotFound(w, r)
+	})
+
 }
 
 // Default
@@ -112,6 +120,7 @@ func getRecipeByID(w http.ResponseWriter, r *http.Request) {
 	recipeID := vars["id"]
 	var recipe Recipe
 	db.First(&recipe, recipeID)
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
 
@@ -120,7 +129,12 @@ func getRecipeByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeName := vars["name"]
 	var recipe Recipe
-	db.First(&recipe, recipeName)
+	result := db.Where("name = ?", recipeName).First(&recipe)
+	if result.Error != nil {
+		http.Error(w, "Recipe not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
 
@@ -184,4 +198,17 @@ func deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeName)
+}
+
+func selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
+	//SELECT COUNT(*) FROM recipes
+}
+
+func numberOfRecipes() {
+	var recipes []Recipe
+	result := db.Find(&recipes)
+	if result.Error != nil {
+		log.Println("DB error:", result.Error)
+	}
+	log.Printf("Found %d recipes", len(recipes))
 }

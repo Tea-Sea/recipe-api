@@ -119,3 +119,87 @@ func TestDeleteByName(t *testing.T) {
 		t.Fatalf("unexpected DB error: %v", result.Error)
 	}
 }
+
+func TestGetByID(t *testing.T) {
+
+	var expected = Recipe{
+		Name:       "Pancakes",
+		Difficulty: 2,
+		Method:     "Mix ingredients and fry."}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/recipes/id/{id}", getRecipeByID).Methods("GET")
+
+	req := httptest.NewRequest(http.MethodGet, "/recipes/id/1", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", res.StatusCode)
+	}
+
+	var data = Recipe{}
+
+	err := json.NewDecoder(res.Body).Decode(&data)
+	if err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if data.Name != expected.Name {
+		t.Fatalf("Expected name %q, got %q", expected.Name, data.Name)
+	}
+
+	if data.Difficulty != expected.Difficulty {
+		t.Fatalf("Expected Difficulty %q, got %q", expected.Difficulty, data.Difficulty)
+	}
+
+	if data.Method != expected.Method {
+		t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
+	}
+}
+
+func TestGetByName(t *testing.T) {
+
+	var expected = Recipe{
+		Name:       "test recipe",
+		Difficulty: 5,
+		Method:     "This is where the method goes"}
+
+	router := mux.NewRouter()
+	router.HandleFunc("/recipes/name/{name}", getRecipeByName).Methods("GET")
+
+	req := httptest.NewRequest(http.MethodGet, "/recipes/name/test%20recipe", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK, got %d", res.StatusCode)
+	}
+
+	var data = Recipe{}
+
+	err := json.NewDecoder(res.Body).Decode(&data)
+	if err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+
+	if data.Name != expected.Name {
+		t.Fatalf("Expected name %q, got %q", expected.Name, data.Name)
+	}
+
+	if data.Difficulty != expected.Difficulty {
+		t.Fatalf("Expected Difficulty %q, got %q", expected.Difficulty, data.Difficulty)
+	}
+
+	if data.Method != expected.Method {
+		t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
+	}
+}
