@@ -68,7 +68,8 @@ func main() {
 	router.HandleFunc("/recipes/id/{id}", getRecipeByID).Methods("GET")
 	router.HandleFunc("/recipes/name/{name}", getRecipeByName).Methods("GET")
 
-	// router.HandleFunc("/recipes/{id}", updateRecipe).Methods("PUT")
+	router.HandleFunc("/recipes/id/{id}", updateRecipeByID).Methods("PUT")
+	router.HandleFunc("/recipes/name/{name}", updateRecipeByName).Methods("PUT")
 
 	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
 	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
@@ -120,6 +121,32 @@ func getRecipeByName(w http.ResponseWriter, r *http.Request) {
 	recipeName := vars["name"]
 	var recipe Recipe
 	db.First(&recipe, recipeName)
+	json.NewEncoder(w).Encode(recipe)
+}
+
+func updateRecipeByID(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeID := vars["id"]
+	var recipe Recipe
+	json.NewDecoder(r.Body).Decode(&recipe)
+	result := db.Model(&recipe).Where("id = ?", recipeID).Updates(recipe)
+	if result.Error != nil {
+		http.Error(w, "Failed to edit recipe by id", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(recipe)
+}
+
+func updateRecipeByName(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	recipeID := vars["name"]
+	var recipe Recipe
+	json.NewDecoder(r.Body).Decode(&recipe)
+	result := db.Model(&recipe).Where("name = ?", recipeID).Updates(recipe)
+	if result.Error != nil {
+		http.Error(w, "Failed to edit recipe by name", http.StatusInternalServerError)
+		return
+	}
 	json.NewEncoder(w).Encode(recipe)
 }
 
