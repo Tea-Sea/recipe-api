@@ -74,7 +74,8 @@ func main() {
 	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
 	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
 
-	router.HandleFunc("/recipes/name/{name}", selectRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipes/random", selectRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipes/random/{difficulty}", filterRandomRecipe).Methods("GET")
 
 	http.Handle("/", router)
 
@@ -202,6 +203,28 @@ func deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 
 func selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
 	//SELECT COUNT(*) FROM recipes
+	var recipe Recipe
+	result := db.Order("RANDOM()").First(&recipe)
+	if result.Error != nil {
+		http.Error(w, "No recipe found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(recipe)
+}
+
+func filterRandomRecipe(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	var recipe Recipe
+	result := db.Where("difficulty <= ?", vars["difficulty"]).Order("RANDOM()").First(&recipe)
+	if result.Error != nil {
+		http.Error(w, "No recipe found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(recipe)
 }
 
 func numberOfRecipes() {
