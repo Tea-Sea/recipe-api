@@ -15,6 +15,19 @@ import (
 	"github.com/joho/godotenv"
 )
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 type Recipe struct {
 	ID         uint   `gorm:"primaryKey" json:"id"`
 	Name       string `json:"name"`
@@ -79,8 +92,10 @@ func main() {
 
 	http.Handle("/", router)
 
+	handler := corsMiddleware(router)
+
 	fmt.Printf("Server listening on port 8080\n")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	log.Fatal(http.ListenAndServe(":8080", handler))
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("404 Not Found: %s %s", r.Method, r.URL.Path)
