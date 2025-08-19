@@ -18,7 +18,7 @@ func TestAddRecipe(t *testing.T) {
 	newRecipe := Recipe{
 		Name:       "test recipe",
 		Difficulty: 5,
-		Method:     "This is where the method goes"}
+	}
 	body, _ := json.Marshal(newRecipe)
 
 	req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewReader(body))
@@ -38,7 +38,7 @@ func TestAddRecipe(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if created.ID == 0 {
+	if created.RecipeID == 0 {
 		t.Errorf("expected recipe ID to be set")
 	}
 
@@ -55,10 +55,10 @@ func TestAddRecipe(t *testing.T) {
 func TestDeleteByID(t *testing.T) {
 
 	newRecipe := Recipe{
-		ID:         100,
+		RecipeID:   100,
 		Name:       "test id",
 		Difficulty: 5,
-		Method:     "TESTING ID DELETION"}
+	}
 	body, _ := json.Marshal(newRecipe)
 
 	req := httptest.NewRequest(http.MethodPost, "/recipes", bytes.NewReader(body))
@@ -82,9 +82,9 @@ func TestDeleteByID(t *testing.T) {
 	}
 
 	var recipe Recipe
-	result := db.Where("id = ?", newRecipe.ID).First(&recipe)
+	result := db.Where("id = ?", newRecipe.RecipeID).First(&recipe)
 	if result.Error == nil {
-		t.Fatalf("recipe ID: '%v' was not deleted", newRecipe.ID)
+		t.Fatalf("recipe ID: '%v' was not deleted", newRecipe.RecipeID)
 	}
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		t.Fatalf("unexpected DB error: %v", result.Error)
@@ -123,9 +123,9 @@ func TestDeleteByName(t *testing.T) {
 func TestGetByID(t *testing.T) {
 
 	var expected = Recipe{
-		Name:       "Pancakes",
+		Name:       "Chocolate Cake",
 		Difficulty: 2,
-		Method:     "Mix ingredients and fry."}
+	}
 
 	router := mux.NewRouter()
 	router.HandleFunc("/recipes/id/{id}", getRecipeByID).Methods("GET")
@@ -157,9 +157,9 @@ func TestGetByID(t *testing.T) {
 		t.Fatalf("Expected Difficulty %q, got %q", expected.Difficulty, data.Difficulty)
 	}
 
-	if data.Method != expected.Method {
-		t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
-	}
+	// if data.Method != expected.Method {
+	// 	t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
+	// }
 }
 
 func TestGetByName(t *testing.T) {
@@ -167,7 +167,7 @@ func TestGetByName(t *testing.T) {
 	var expected = Recipe{
 		Name:       "test recipe",
 		Difficulty: 5,
-		Method:     "This is where the method goes"}
+	}
 
 	router := mux.NewRouter()
 	router.HandleFunc("/recipes/name/{name}", getRecipeByName).Methods("GET")
@@ -199,7 +199,7 @@ func TestGetByName(t *testing.T) {
 		t.Fatalf("Expected Difficulty %q, got %q", expected.Difficulty, data.Difficulty)
 	}
 
-	if data.Method != expected.Method {
-		t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
-	}
+	// if data.Method != expected.Method {
+	// 	t.Fatalf("Expected Method %q, got %q", expected.Method, data.Method)
+	// }
 }

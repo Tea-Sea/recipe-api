@@ -21,8 +21,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 		frontend, ok := os.LookupEnv("FRONTEND_URL")
 		if !ok {
 			fmt.Println("FRONTEND_URL is not set")
-		} else {
-			fmt.Printf("FRONTEND_URL = %s\n", frontend)
 		}
 		w.Header().Set("Access-Control-Allow-Origin", frontend)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -36,10 +34,46 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 type Recipe struct {
-	ID         uint   `gorm:"primaryKey" json:"id"`
-	Name       string `json:"name"`
-	Difficulty int    `json:"difficulty"`
-	Method     string `json:"method"`
+	RecipeID     int                `gorm:"primaryKey" json:"id"`
+	Name         string             `json:"name"`
+	Difficulty   int                `json:"difficulty"`
+	Description  *string            `json:"decription,omitempty"` //optional
+	Ingredients  []RecipeIngredient `gorm:"foreignKey:RecipeID" json:"ingredients,omitempty"`
+	Instructions []Instruction      `gorm:"foreignKey:RecipeID" json:"instructions,omitempty"`
+}
+
+// Single Ingredient
+type Ingredient struct {
+	IngredientID int    `gorm:"primaryKey" json:"id"`
+	Label        string `gorm:"type:varchar(32);not null" json:"label"`
+	Sort         int    `gorm:"default:0;check:sort>=0" json:"sort"`
+}
+
+type Unit struct {
+	UnitID int    `gorm:"primaryKey" json:"id"`
+	Label  string `gorm:"type:varchar(32);not null" json:"label"`
+	Sort   int    `gorm:"default:0;check:sort>=0" json:"sort"`
+}
+
+type RecipeIngredient struct {
+	RecipeIngredientID int         `gorm:"primaryKey" json:"id"`
+	RecipeID           int         `gorm:"not null;index" json:"recipe_id"`
+	IngredientID       int         `gorm:"not null;index" json:"ingredient_id"`
+	UnitID             *int        `gorm:"index" json:"unit_id,omitempty"`            //optional
+	Amount             *float32    `gorm:"type:numeric(4,2)" json:"amount,omitempty"` //optional
+	Sort               int         `gorm:"default:0;check:sort>=0" json:"sort"`
+	Ingredient         *Ingredient `gorm:"foreignKey:IngredientID;references:IngredientID" json:"ingredient"`
+	Unit               *Unit       `gorm:"foreignKey:UnitID;references:UnitID" json:"unit,omitempty"`
+}
+
+type Instruction struct {
+	InstructionID int     `gorm:"primaryKey" json:"id"`
+	RecipeID      int     `gorm:"not null;index" json:"recipe_id"`
+	StepNumber    int     `gorm:"not null;check:step_number>0" json:"step_number"`
+	StepText      string  `json:"text"`
+	Duration      *int    `json:"duration_minutes,omitempty"` //optional
+	Notes         *string `json:"notes,omitempty"`            //optional
+	Sort          int     `gorm:"default:0;check:sort>=0" json:"sort"`
 }
 
 var db *gorm.DB
@@ -82,20 +116,20 @@ func main() {
 
 	router.HandleFunc("/", displayLanding)
 
-	router.HandleFunc("/recipes", addRecipe).Methods("POST")
-	router.HandleFunc("/recipes", getAllRecipes).Methods("GET")
+	router.HandleFunc("/recipe/add", addRecipe).Methods("POST")
+	router.HandleFunc("/recipe/all", getAllRecipes).Methods("GET")
 
-	router.HandleFunc("/recipes/id/{id}", getRecipeByID).Methods("GET")
-	router.HandleFunc("/recipes/name/{name}", getRecipeByName).Methods("GET")
+	router.HandleFunc("/recipe/id/{id}", getRecipeByID).Methods("GET")
+	router.HandleFunc("/recipe/name/{name}", getRecipeByName).Methods("GET")
 
-	router.HandleFunc("/recipes/id/{id}", updateRecipeByID).Methods("PUT")
-	router.HandleFunc("/recipes/name/{name}", updateRecipeByName).Methods("PUT")
+	router.HandleFunc("/recipe/id/{id}", updateRecipeByID).Methods("PUT")
+	router.HandleFunc("/recipe/name/{name}", updateRecipeByName).Methods("PUT")
 
-	router.HandleFunc("/recipes/id/{id}", deleteRecipeByID).Methods("DELETE")
-	router.HandleFunc("/recipes/name/{name}", deleteRecipeByName).Methods("DELETE")
+	router.HandleFunc("/recipe/id/{id}", deleteRecipeByID).Methods("DELETE")
+	router.HandleFunc("/recipe/name/{name}", deleteRecipeByName).Methods("DELETE")
 
-	router.HandleFunc("/recipes/random", selectRandomRecipe).Methods("GET")
-	router.HandleFunc("/recipes/random/{difficulty}", filterRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipe/random", selectRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipe/random/{difficulty}", filterRandomRecipe).Methods("GET")
 
 	http.Handle("/", router)
 
@@ -142,7 +176,19 @@ func getRecipeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["id"]
 	var recipe Recipe
-	db.First(&recipe, recipeID)
+
+	err := db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
+		return db.Order("sort ASC")
+	}).Preload("Ingredients.Ingredient"). // load Ingredient details
+						Preload("Ingredients.Unit"). // load Unit details
+						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_number ASC")
+		}).First(&recipe, recipeID).Error
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("%+v\n", recipe)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
