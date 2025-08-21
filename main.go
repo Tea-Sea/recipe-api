@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -34,66 +35,72 @@ func corsMiddleware(next http.Handler) http.Handler {
 }
 
 type Recipe struct {
-	RecipeID     int                `gorm:"primaryKey" json:"id"`
-	Name         string             `json:"name"`
+	RecipeID     int                `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name         string             `gorm:"unique" json:"name"`
 	Difficulty   int                `json:"difficulty"`
-	Description  *string            `json:"decription,omitempty"` //optional
+	Description  *string            `json:"description,omitempty"` //optional
 	Ingredients  []RecipeIngredient `gorm:"foreignKey:RecipeID" json:"ingredients,omitempty"`
 	Instructions []Instruction      `gorm:"foreignKey:RecipeID" json:"instructions,omitempty"`
 }
 
 // Single Ingredient
 type Ingredient struct {
-	IngredientID int    `gorm:"primaryKey" json:"id"`
+	IngredientID int    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Label        string `gorm:"type:varchar(32);not null" json:"label"`
-	Sort         int    `gorm:"default:0;check:sort>=0" json:"sort"`
 }
 
 type Unit struct {
-	UnitID int    `gorm:"primaryKey" json:"id"`
+	UnitID int    `gorm:"primaryKey;autoIncrement" json:"id"`
 	Label  string `gorm:"type:varchar(32);not null" json:"label"`
-	Sort   int    `gorm:"default:0;check:sort>=0" json:"sort"`
 }
 
 type RecipeIngredient struct {
-	RecipeIngredientID int         `gorm:"primaryKey" json:"id"`
+	RecipeIngredientID int         `gorm:"primaryKey;autoIncrement" json:"id"`
 	RecipeID           int         `gorm:"not null;index" json:"recipe_id"`
 	IngredientID       int         `gorm:"not null;index" json:"ingredient_id"`
 	UnitID             *int        `gorm:"index" json:"unit_id,omitempty"`            //optional
 	Amount             *float32    `gorm:"type:numeric(4,2)" json:"amount,omitempty"` //optional
-	Sort               int         `gorm:"default:0;check:sort>=0" json:"sort"`
 	Ingredient         *Ingredient `gorm:"foreignKey:IngredientID;references:IngredientID" json:"ingredient"`
 	Unit               *Unit       `gorm:"foreignKey:UnitID;references:UnitID" json:"unit,omitempty"`
 }
 
 type Instruction struct {
-	InstructionID int     `gorm:"primaryKey" json:"id"`
+	InstructionID int     `gorm:"primaryKey;autoIncrement" json:"id"`
 	RecipeID      int     `gorm:"not null;index" json:"recipe_id"`
 	StepNumber    int     `gorm:"not null;check:step_number>0" json:"step_number"`
-	StepText      string  `json:"text"`
-	Duration      *int    `json:"duration_minutes,omitempty"` //optional
-	Notes         *string `json:"notes,omitempty"`            //optional
-	Sort          int     `gorm:"default:0;check:sort>=0" json:"sort"`
+	StepText      string  `json:"step_text"`
+	Duration      *int    `json:"duration,omitempty"` //optional
+	Notes         *string `json:"notes,omitempty"`    //optional
 }
 
-var db *gorm.DB
+// Applicaton struct to prevent use of globals
+type App struct {
+	db *gorm.DB
+}
 
 func init() {
+	fmt.Println("App is starting…")
+}
+
+func main() {
+
 	var err error
 	err = godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 	dsn := os.Getenv("DATABASE_URL")
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Info)})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Info)})
+
+	app := &App{db: db}
 
 	if err != nil {
 		log.Fatal("Unable to connect to database:", err)
 	}
 
-	db.AutoMigrate(&Recipe{})
+	app.db.AutoMigrate(&Recipe{})
 
-	sqlDB, err := db.DB()
+	sqlDB, err := app.db.DB()
 	if err != nil {
 		log.Fatalf("failed to get generic database object: %v", err)
 	}
@@ -108,28 +115,24 @@ func init() {
 
 	fmt.Println("Database connection is alive.")
 
-	// defer sqlDB.Close()
-}
-
-func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", displayLanding)
 
-	router.HandleFunc("/recipe/add", addRecipe).Methods("POST")
-	router.HandleFunc("/recipe/all", getAllRecipes).Methods("GET")
+	router.HandleFunc("/recipe/add", app.addRecipe).Methods("POST")
+	router.HandleFunc("/recipe/all", app.getAllRecipes).Methods("GET")
 
-	router.HandleFunc("/recipe/id/{id}", getRecipeByID).Methods("GET")
-	router.HandleFunc("/recipe/name/{name}", getRecipeByName).Methods("GET")
+	router.HandleFunc("/recipe/id/{id}", app.getRecipeByID).Methods("GET")
+	router.HandleFunc("/recipe/name/{name}", app.getRecipeByName).Methods("GET")
 
-	router.HandleFunc("/recipe/id/{id}", updateRecipeByID).Methods("PUT")
-	router.HandleFunc("/recipe/name/{name}", updateRecipeByName).Methods("PUT")
+	router.HandleFunc("/recipe/id/{id}", app.updateRecipeByID).Methods("PUT")
+	router.HandleFunc("/recipe/name/{name}", app.updateRecipeByName).Methods("PUT")
 
-	router.HandleFunc("/recipe/id/{id}", deleteRecipeByID).Methods("DELETE")
-	router.HandleFunc("/recipe/name/{name}", deleteRecipeByName).Methods("DELETE")
+	router.HandleFunc("/recipe/id/{id}", app.deleteRecipeByID).Methods("DELETE")
+	router.HandleFunc("/recipe/name/{name}", app.deleteRecipeByName).Methods("DELETE")
 
-	router.HandleFunc("/recipe/random", selectRandomRecipe).Methods("GET")
-	router.HandleFunc("/recipe/random/{difficulty}", filterRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipe/random", app.selectRandomRecipe).Methods("GET")
+	router.HandleFunc("/recipe/random/{difficulty}", app.filterRandomRecipe).Methods("GET")
 
 	http.Handle("/", router)
 
@@ -151,68 +154,178 @@ func displayLanding(w http.ResponseWriter, r *http.Request) {
 }
 
 // Get all recipes
-func getAllRecipes(w http.ResponseWriter, r *http.Request) {
-	var recipe []Recipe
-	db.Find(&recipe)
+func (app *App) getAllRecipes(w http.ResponseWriter, r *http.Request) {
+	var recipes []Recipe
+
+	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
+		return db.Order("ingredient_id ASC")
+	}).
+		Preload("Ingredients.Ingredient"). // load Ingredient details
+		Preload("Ingredients.Unit").       // load Unit details
+		Preload("Instructions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_number ASC")
+		}).
+		Find(&recipes)
+
+	if result.Error != nil {
+		http.Error(w, "Error fetching recipes.", http.StatusNotFound)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(recipe)
+	json.NewEncoder(w).Encode(recipes)
 }
 
 // Add new recipe
-func addRecipe(w http.ResponseWriter, r *http.Request) {
-	var recipe Recipe
-	json.NewDecoder(r.Body).Decode(&recipe)
-	result := db.Where("name = ?", recipe.Name).First(&recipe)
-	if result.Error == nil {
-		http.Error(w, "Recipe with that name already exists.", http.StatusInternalServerError)
+func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
+	var data Recipe
+	check := json.NewDecoder(r.Body).Decode(&data)
+	if check != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	db.Create(&recipe)
+
+	var recipe = Recipe{}
+	result := app.db.Transaction(func(tx *gorm.DB) error {
+		// Rebuild structs
+		// Recipe
+		recipe = Recipe{
+			Name:       data.Name,
+			Difficulty: data.Difficulty,
+		}
+
+		result := tx.Create(&recipe) // Check if exists
+		if result.Error != nil {
+			fmt.Println("Recipe error:", result.Error)
+			// return result.Error
+		}
+
+		// Insert instructions
+		for i := range data.Instructions {
+			var instruction = Instruction{
+				RecipeID:   recipe.RecipeID,
+				StepNumber: data.Instructions[i].StepNumber,
+				StepText:   data.Instructions[i].StepText,
+				Duration:   data.Instructions[i].Duration,
+				Notes:      data.Instructions[i].Notes,
+			}
+
+			result := tx.Create(&instruction)
+			if result.Error != nil {
+				fmt.Println("Instruction error:", result.Error)
+				// return result.Error
+			}
+			recipe.Instructions = append(recipe.Instructions, instruction) // For return created object
+		}
+
+		//For every Recipe_Ingredient
+		for i := range data.Ingredients {
+			// Create new RI linker with recipeID and amount
+			ri := RecipeIngredient{
+				RecipeID: recipe.RecipeID,
+				Amount:   data.Ingredients[i].Amount,
+			}
+			// Create the Ingredient
+			if data.Ingredients[i].Ingredient != nil {
+				var ingredient = Ingredient{
+					Label: data.Ingredients[i].Ingredient.Label,
+				}
+				result := tx.FirstOrCreate(&ingredient, Ingredient{Label: ingredient.Label}) // Check if exists
+				if result.Error != nil {
+					fmt.Println("Ingredient error:", result.Error)
+					// return result.Error
+				}
+				// Set IngredientID in linker
+				ri.IngredientID = ingredient.IngredientID
+			}
+			// Create Unit
+			if data.Ingredients[i].Unit != nil {
+				var unit = Unit{
+					Label: data.Ingredients[i].Unit.Label,
+				}
+				result := tx.FirstOrCreate(&unit, Unit{Label: unit.Label}) // Check if exists
+				if result.Error != nil {
+					fmt.Println("Unit error:", result.Error)
+					// return result.Error
+				}
+				// Set UnitID in linker
+				ri.UnitID = &unit.UnitID
+			}
+			// Create the linker
+			result := tx.Create(&ri)
+			if result.Error != nil {
+				fmt.Println("RecipeIngredient error:", result.Error)
+				// return result.Error
+			}
+			recipe.Ingredients = append(recipe.Ingredients, ri)
+		}
+		return nil
+	})
+
+	if result != nil {
+		fmt.Println("Transaction Failed:", result)
+		http.Error(w, result.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(recipe)
 }
 
 // Find a recipe using the ID
-func getRecipeByID(w http.ResponseWriter, r *http.Request) {
+func (app *App) getRecipeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["id"]
+	id, err := strconv.Atoi(recipeID)
+	if err != nil {
+		http.Error(w, "invalid recipe ID", http.StatusBadRequest)
+		return
+	}
+
 	var recipe Recipe
 
-	err := db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort ASC")
+	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
+		return db.Order("id ASC")
 	}).Preload("Ingredients.Ingredient"). // load Ingredient details
 						Preload("Ingredients.Unit"). // load Unit details
 						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
 			return db.Order("step_number ASC")
-		}).First(&recipe, recipeID).Error
-	if err != nil {
-		panic(err)
+		}).First(&recipe, id)
+	if result.Error != nil {
+		http.Error(w, fmt.Sprintf("Recipe with id %s not found", recipeID), http.StatusNotFound)
+		return
 	}
-
-	fmt.Printf("%+v\n", recipe)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
 
 // Find a recipe using its name
-func getRecipeByName(w http.ResponseWriter, r *http.Request) {
+func (app *App) getRecipeByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeName := vars["name"]
 	var recipe Recipe
-	result := db.Where("name = ?", recipeName).First(&recipe)
+
+	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
+		return db.Order("id ASC")
+	}).Preload("Ingredients.Ingredient"). // load Ingredient details
+						Preload("Ingredients.Unit"). // load Unit details
+						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_number ASC")
+		}).First(&recipe, "name = ?", recipeName)
 	if result.Error != nil {
-		http.Error(w, "Recipe not found", http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Recipe %s not found", recipeName), http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
 
-func updateRecipeByID(w http.ResponseWriter, r *http.Request) {
+func (app *App) updateRecipeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["id"]
 	var recipe Recipe
 	json.NewDecoder(r.Body).Decode(&recipe)
-	result := db.Model(&recipe).Where("id = ?", recipeID).Updates(recipe)
+	result := app.db.Model(&recipe).Where("id = ?", recipeID).Updates(recipe)
 	if result.Error != nil {
 		http.Error(w, "Failed to edit recipe by id", http.StatusInternalServerError)
 		return
@@ -220,12 +333,12 @@ func updateRecipeByID(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(recipe)
 }
 
-func updateRecipeByName(w http.ResponseWriter, r *http.Request) {
+func (app *App) updateRecipeByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["name"]
 	var recipe Recipe
 	json.NewDecoder(r.Body).Decode(&recipe)
-	result := db.Model(&recipe).Where("name = ?", recipeID).Updates(recipe)
+	result := app.db.Model(&recipe).Where("name = ?", recipeID).Updates(recipe)
 	if result.Error != nil {
 		http.Error(w, "Failed to edit recipe by name", http.StatusInternalServerError)
 		return
@@ -234,10 +347,10 @@ func updateRecipeByName(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete recipe using id
-func deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
+func (app *App) deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["id"]
-	result := db.Where("id = ?", recipeID).Delete(&Recipe{})
+	result := app.db.Where("id = ?", recipeID).Delete(&Recipe{})
 	if result.Error != nil {
 		http.Error(w, "Failed to delete recipe by ID", http.StatusInternalServerError)
 		return
@@ -252,10 +365,10 @@ func deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete recipe using name
-func deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
+func (app *App) deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeName := vars["name"]
-	result := db.Where("name = ?", recipeName).Delete(&Recipe{})
+	result := app.db.Where("name = ?", recipeName).Delete(&Recipe{})
 	if result.Error != nil {
 		http.Error(w, "Failed to delete recipe", http.StatusInternalServerError)
 		return
@@ -269,10 +382,10 @@ func deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeName)
 }
 
-func selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
+func (app *App) selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
 	//SELECT COUNT(*) FROM recipes
 	var recipe Recipe
-	result := db.Order("RANDOM()").First(&recipe)
+	result := app.db.Order("RANDOM()").First(&recipe)
 	if result.Error != nil {
 		http.Error(w, "No recipe found", http.StatusNotFound)
 		return
@@ -282,10 +395,10 @@ func selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(recipe)
 }
 
-func filterRandomRecipe(w http.ResponseWriter, r *http.Request) {
+func (app *App) filterRandomRecipe(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var recipe Recipe
-	result := db.Where("difficulty <= ?", vars["difficulty"]).Order("RANDOM()").First(&recipe)
+	result := app.db.Where("difficulty <= ?", vars["difficulty"]).Order("RANDOM()").First(&recipe)
 	if result.Error != nil {
 		http.Error(w, "No recipe found", http.StatusNotFound)
 		return
@@ -295,9 +408,9 @@ func filterRandomRecipe(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(recipe)
 }
 
-func numberOfRecipes() {
+func (app *App) numberOfRecipes() {
 	var recipes []Recipe
-	result := db.Find(&recipes)
+	result := app.db.Find(&recipes)
 	if result.Error != nil {
 		log.Println("DB error:", result.Error)
 	}
