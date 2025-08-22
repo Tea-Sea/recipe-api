@@ -407,14 +407,19 @@ func (app *App) deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) selectRandomRecipe(w http.ResponseWriter, r *http.Request) {
-	//SELECT COUNT(*) FROM recipes
 	var recipe Recipe
-	result := app.db.Order("RANDOM()").First(&recipe)
+
+	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
+		return db.Order("ingredient_id ASC")
+	}).Preload("Ingredients.Ingredient"). // load Ingredient details
+						Preload("Ingredients.Unit"). // load Unit details
+						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_number ASC")
+		}).Order("RANDOM()").First(&recipe)
 	if result.Error != nil {
-		http.Error(w, "No recipe found", http.StatusNotFound)
+		http.Error(w, "Random recipe not retrieved", http.StatusNotFound)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recipe)
 }
