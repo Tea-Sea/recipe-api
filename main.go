@@ -185,9 +185,9 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Rebuild structs
 	var recipe = Recipe{}
 	result := app.db.Transaction(func(tx *gorm.DB) error {
-		// Rebuild structs
 		// Recipe
 		recipe = Recipe{
 			Name:       data.Name,
@@ -285,7 +285,7 @@ func (app *App) getRecipeByID(w http.ResponseWriter, r *http.Request) {
 	var recipe Recipe
 
 	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
-		return db.Order("id ASC")
+		return db.Order("ingredient_id ASC")
 	}).Preload("Ingredients.Ingredient"). // load Ingredient details
 						Preload("Ingredients.Unit"). // load Unit details
 						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
@@ -306,7 +306,7 @@ func (app *App) getRecipeByName(w http.ResponseWriter, r *http.Request) {
 	var recipe Recipe
 
 	result := app.db.Preload("Ingredients", func(db *gorm.DB) *gorm.DB {
-		return db.Order("id ASC")
+		return db.Order("recipe_id ASC")
 	}).Preload("Ingredients.Ingredient"). // load Ingredient details
 						Preload("Ingredients.Unit"). // load Unit details
 						Preload("Instructions", func(db *gorm.DB) *gorm.DB {
@@ -350,17 +350,32 @@ func (app *App) updateRecipeByName(w http.ResponseWriter, r *http.Request) {
 func (app *App) deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeID := vars["id"]
-	result := app.db.Where("id = ?", recipeID).Delete(&Recipe{})
+	// Convert to int
+	id, err := strconv.Atoi(recipeID)
+	if err != nil {
+		http.Error(w, "invalid recipe ID", http.StatusBadRequest)
+		return
+	}
+
+	var check Recipe
+	result := app.db.First(&check, id)
+	if result.Error != nil {
+		fmt.Println("Recipe not found")
+		return
+	}
+
+	result = app.db.Delete(&Recipe{}, id)
 	if result.Error != nil {
 		http.Error(w, "Failed to delete recipe by ID", http.StatusInternalServerError)
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		http.Error(w, "Recipe not found", http.StatusNotFound)
+		http.Error(w, "Table unaffacted", http.StatusNotFound)
 		return
 	}
 
+	w.WriteHeader(http.StatusNoContent)
 	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeID)
 }
 
@@ -368,17 +383,26 @@ func (app *App) deleteRecipeByID(w http.ResponseWriter, r *http.Request) {
 func (app *App) deleteRecipeByName(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	recipeName := vars["name"]
-	result := app.db.Where("name = ?", recipeName).Delete(&Recipe{})
+
+	var check Recipe
+	result := app.db.First(&check, check.Name)
 	if result.Error != nil {
-		http.Error(w, "Failed to delete recipe", http.StatusInternalServerError)
+		fmt.Println("Recipe not found")
+		return
+	}
+
+	result = app.db.Where("name = ?", recipeName).Delete(&Recipe{})
+	if result.Error != nil {
+		http.Error(w, "Failed to delete recipe by name", http.StatusInternalServerError)
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		http.Error(w, "Recipe not found", http.StatusNotFound)
+		http.Error(w, "Table unaffacted", http.StatusNotFound)
 		return
 	}
 
+	w.WriteHeader(http.StatusNoContent)
 	fmt.Fprintf(w, "Recipe '%s' deleted successfully", recipeName)
 }
 
