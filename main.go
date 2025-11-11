@@ -41,6 +41,7 @@ type Recipe struct {
 	Description  *string            `json:"description,omitempty"` //optional
 	Ingredients  []RecipeIngredient `gorm:"foreignKey:RecipeID" json:"ingredients,omitempty"`
 	Instructions []Instruction      `gorm:"foreignKey:RecipeID" json:"instructions,omitempty"`
+	UserID       string             `gorm:"type:varchar(32);not null" json:"user_id"`
 }
 
 // Single Ingredient
@@ -67,9 +68,9 @@ type RecipeIngredient struct {
 type Instruction struct {
 	InstructionID int     `gorm:"primaryKey;autoIncrement" json:"id"`
 	RecipeID      int     `gorm:"not null;index" json:"recipe_id"`
-	StepNumber    int     `gorm:"not null;check:step_number>0" json:"step_number"`
-	StepText      string  `json:"step_text"`
-	Duration      *int    `json:"duration,omitempty"` //optional
+	StepNumber    int     `gorm:"not null;check:step_number>0" json:"stepNumber"`
+	StepText      string  `json:"stepText"`
+	Duration      *int    `json:"stepTime,omitempty"` //optional
 	Notes         *string `json:"notes,omitempty"`    //optional
 }
 
