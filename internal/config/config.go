@@ -3,6 +3,8 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"github.com/joho/godotenv"
@@ -16,10 +18,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	var err = godotenv.Load("../../.env")
-	if err != nil {
-		log.Println("Error loading .env file. Refering to default values.")
-	}
+	LoadEnvFromRoot()
 
 	debug, _ := strconv.ParseBool(os.Getenv("DEBUG"))
 
@@ -38,4 +37,18 @@ func loadEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func LoadEnvFromRoot() {
+	_, file, _, _ := runtime.Caller(0)
+	dir := filepath.Dir(file)
+
+	root := filepath.Join(dir, "../../")
+
+	envPath := filepath.Join(root, ".env")
+
+	err := godotenv.Load(envPath)
+	if err != nil {
+		log.Printf("Warning: .env file not found at: %v. Will refer to default values instead. \n", envPath)
+	}
 }
