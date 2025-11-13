@@ -8,5 +8,5 @@ type Recipe struct {
 	Description  *string            `json:"description,omitempty"` //optional
 	Ingredients  []RecipeIngredient `gorm:"foreignKey:RecipeID" json:"ingredients,omitempty"`
 	Instructions []Instruction      `gorm:"foreignKey:RecipeID" json:"instructions,omitempty"`
-	UserID       string             `gorm:"type:varchar(32);not null" json:"user_id"`
+	UserID       string             `gorm:"type:varchar(32);not null" json:"userID"`
 }

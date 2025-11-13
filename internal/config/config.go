@@ -16,7 +16,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	var err = godotenv.Load()
+	var err = godotenv.Load("../../.env")
 	if err != nil {
 		log.Println("Error loading .env file. Refering to default values.")
 	}

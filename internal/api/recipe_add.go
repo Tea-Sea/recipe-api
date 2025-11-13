@@ -25,6 +25,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 		recipe = models.Recipe{
 			Name:       data.Name,
 			Difficulty: data.Difficulty,
+			UserID:     data.UserID,
 		}
 
 		result := tx.Create(&recipe) // Check if exists
