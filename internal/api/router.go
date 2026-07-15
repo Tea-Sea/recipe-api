@@ -42,15 +42,20 @@ func NewRouter(app *App, frontendURL string, appLogger *log.Logger) http.Handler
 	router.HandleFunc("/recipe/random", app.selectRandomRecipe).Methods("GET")
 	router.HandleFunc("/recipe/random/{difficulty}", app.filterRandomRecipe).Methods("GET")
 
-	http.Handle("/", router)
-
-	handler := middleware.CorsMiddleware(router, frontendURL)
-
-	appLogger.Fatal(http.ListenAndServe(":8080", handler))
+	// Enable Rate Limiting
+	router.Use(app.RateLimiter.RateLimitMiddleware)
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("404 Not Found: %s %s", r.Method, r.URL.Path)
 		http.NotFound(w, r)
 	})
+
+	// Wrap CORS
+	handler := middleware.CorsMiddleware(router, frontendURL)
+
+	http.Handle("/", router)
+
+	appLogger.Fatal(http.ListenAndServe(":8080", handler))
+
 	return router
 }

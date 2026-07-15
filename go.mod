@@ -1,6 +1,6 @@
 module recipe-api
 
-go 1.24.3
+go 1.25.0
 
 require (
 	github.com/gorilla/mux v1.8.1
@@ -21,4 +21,5 @@ require (
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/time v0.15.0 // indirect
 )

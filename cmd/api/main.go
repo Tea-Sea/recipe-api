@@ -11,6 +11,7 @@ import (
 	"recipe-api/internal/api"
 	"recipe-api/internal/config"
 	"recipe-api/internal/logger"
+	"recipe-api/internal/middleware"
 	"recipe-api/internal/repository"
 )
 
@@ -44,9 +45,12 @@ func main() {
 		appLogger.Fatal("failed to run database migrations:", err)
 	}
 
+	rateLimiter := middleware.NewRateLimiter()
+
 	apiApp := &api.App{
-		Repo:   repoApp,
-		Logger: appLogger,
+		Repo:        repoApp,
+		Logger:      appLogger,
+		RateLimiter: rateLimiter,
 	}
 
 	// Get the underlying *sql.DB for connection pooling configuration
