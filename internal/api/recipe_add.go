@@ -31,7 +31,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 		result := tx.Create(&recipe) // Check if exists
 		if result.Error != nil {
 			app.Logger.Println("Recipe error:", result.Error)
-			// return result.Error
+			return result.Error
 		}
 
 		// Insert instructions
@@ -47,7 +47,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 			result := tx.Create(&instruction)
 			if result.Error != nil {
 				app.Logger.Println("Instruction error:", result.Error)
-				// return result.Error
+				return result.Error
 			}
 			recipe.Instructions = append(recipe.Instructions, instruction) // For return created object
 		}
@@ -67,7 +67,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 				result := tx.FirstOrCreate(&ingredient, models.Ingredient{Label: ingredient.Label}) // Check if exists
 				if result.Error != nil {
 					app.Logger.Println("Ingredient error:", result.Error)
-					// return result.Error
+					return result.Error
 				}
 				// Set IngredientID in linker
 				ri.IngredientID = ingredient.IngredientID
@@ -80,7 +80,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 				result := tx.FirstOrCreate(&unit, models.Unit{Label: unit.Label}) // Check if exists
 				if result.Error != nil {
 					app.Logger.Println("Unit error:", result.Error)
-					// return result.Error
+					return result.Error
 				}
 				// Set UnitID in linker
 				ri.UnitID = &unit.UnitID
@@ -89,7 +89,7 @@ func (app *App) addRecipe(w http.ResponseWriter, r *http.Request) {
 			result := tx.Create(&ri)
 			if result.Error != nil {
 				app.Logger.Println("RecipeIngredient error:", result.Error)
-				// return result.Error
+				return result.Error
 			}
 			recipe.Ingredients = append(recipe.Ingredients, ri)
 		}

@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"time"
 
 	"golang.org/x/time/rate"
 )
@@ -16,10 +15,14 @@ type RateLimiter struct {
 
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		Get:    rate.NewLimiter(rate.Every(2*time.Second), 5),
-		Post:   rate.NewLimiter(rate.Every(10*time.Second), 2),
-		Put:    rate.NewLimiter(rate.Every(10*time.Second), 2),
-		Delete: rate.NewLimiter(rate.Every(20*time.Second), 1),
+		// Get:    rate.NewLimiter(rate.Every(2*time.Second), 5),
+		// Post:   rate.NewLimiter(rate.Every(10*time.Second), 2),
+		// Put:    rate.NewLimiter(rate.Every(10*time.Second), 2),
+		// Delete: rate.NewLimiter(rate.Every(20*time.Second), 1),
+		Get:    rate.NewLimiter(1, 5),
+		Post:   rate.NewLimiter(1, 2),
+		Put:    rate.NewLimiter(1, 2),
+		Delete: rate.NewLimiter(1, 1),
 	}
 }
 
